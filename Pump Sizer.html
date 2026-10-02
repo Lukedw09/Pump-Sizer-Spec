@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pump sizer</title>
+<style>
+  :root {
+    --bg: #f3f0e8;
+    --ink: #1b1916;
+    --muted: #5e584e;
+    --line: #ddd6c8;
+    --panel: #fffdf9;
+    --accent: #0e4d5c;
+    --warn-bg: #fff4ec;
+    --warn: #8c3d12;
+    --ox: #0072b2;
+    --fuel: #9a6200;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 14px/1.4 "Segoe UI", system-ui, sans-serif;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: baseline;
+    padding: 16px 22px 8px;
+  }
+  h1 { font-size: 20px; font-weight: 650; margin: 0; }
+  header p { margin: 0; color: var(--muted); font-size: 13px; }
+  #status { color: var(--accent); font-variant-numeric: tabular-nums; }
+  #answer {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0 18px 10px;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 420px minmax(0, 1fr);
+    gap: 16px;
+    padding: 8px 18px 28px;
+    align-items: start;
+  }
+  .layout > * { min-width: 0; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px 14px;
+  }
+  #form {
+    position: sticky;
+    top: 12px;
+    max-height: calc(100vh - 24px);
+    overflow: auto;
+  }
+  h2 {
+    margin: 14px 0 4px;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h2:first-child { margin-top: 2px; }
+  .hint { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+  .field {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr) 88px 42px;
+    gap: 6px;
+    align-items: center;
+    margin: 6px 0;
+  }
+  .field span:first-child { font-size: 13px; }
+  .unit { color: var(--muted); font-size: 12px; }
+  input[type="number"], select {
+    font: inherit;
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: white;
+    font-variant-numeric: tabular-nums;
+  }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  select { grid-column: 2 / span 2; }
+  input:focus, select:focus, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  button {
+    margin-top: 12px;
+    font: inherit;
+    background: var(--accent);
+    color: white;
+    border: 0;
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  button:hover { filter: brightness(1.08); }
+  #error {
+    min-height: 1.2em;
+    margin: 8px 18px 0;
+    color: var(--warn);
+    font-size: 13px;
+  }
+  .stat {
+    background: #f6f3ec;
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .stat span { display: block; color: var(--muted); font-size: 12px; }
+  .stat b {
+    display: block;
+    margin-top: 2px;
+    font-size: 18px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; color: var(--muted); }
+  th.ox { color: var(--ox); }
+  th.fuel { color: var(--fuel); }
+  #plot {
+    width: 100%;
+    height: auto;
+    margin-top: 8px;
+    background: white;
+    border-radius: 8px;
+    display: block;
+    cursor: crosshair;
+  }
+  #plot-note { margin: 8px 0 0; }
+  #readout { min-height: 1.4em; margin: 2px 0 0; }
+  .warnings { margin: 8px 0 0; padding-left: 18px; }
+  .warnings li { margin: 3px 0; color: var(--warn); }
+  .quiet { color: var(--muted); list-style: none; margin-left: -18px; }
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px 12px;
+    margin: 0 0 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .facts span { display: block; color: var(--muted); font-size: 12px; }
+  .noscript {
+    margin: 16px 18px;
+    padding: 12px 14px;
+    background: var(--warn-bg);
+    color: var(--warn);
+    border-radius: 8px;
+  }
+  @media (max-width: 980px) {
+    header { align-items: flex-start; flex-direction: column; padding: 16px 12px 8px; }
+    .layout { grid-template-columns: 1fr; padding: 8px 12px 28px; }
+    #form { position: static; max-height: none; }
+    #answer, .facts { grid-template-columns: 1fr 1fr; }
+    .field {
+      grid-template-columns: minmax(0, 1fr) 92px 52px;
+    }
+    .field span:first-child { grid-column: 1 / -1; }
+    select { grid-column: 1 / -1; }
+    .hint { overflow-wrap: anywhere; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Few-kN pump sizer</h1>
+    <p>Meanline LOX/RP-1 and LOX/ethanol. Change an input and the result follows.</p>
+  </div>
+  <p id="status">Starting</p>
+</header>
+<div id="answer"></div>
+<p id="error"></p>
+<div class="layout">
+  <form id="form" class="panel"></form>
+  <section class="panel">
+    <div id="details"></div>
+    <ul id="warnings" class="warnings"></ul>
+    <svg id="plot" role="img" aria-label="Cavitation margin and impeller diameter versus shaft speed" font-family="Segoe UI, system-ui, sans-serif"></svg>
+    <p id="plot-note" class="hint"></p>
+    <p id="readout" class="hint">Move across the figure to read a shaft speed.</p>
+  </section>
+</div>
+<noscript>
+  <p class="noscript">Save this file and open it in Chrome, Edge, or Firefox. A mail preview leaves the calculator blank.</p>
+</noscript>
+<script>
+const G0 = 9.80665;
+const OMEGA_S_MIN = 0.4;
+const OMEGA_S_MAX = 1.5;
+const R_WARN_DELTA = 0.3;
+const EPS_REFERENCE = 8;
+const RPM_SEARCH_FLOOR = 1000;
+const RPM_SEARCH_CAP = 2000000;
+const RPM_SEARCH_POINTS = 5000;
+const PLOT_POINTS = 401;
+
+const PROPELLANTS = {
+  LOX: { density: 1141, vaporPressure: 101325 },
+  "RP-1": { density: 810, vaporPressure: 200 },
+  ethanol: { density: 789, vaporPressure: 5800 },
+};
+
+const PAIRS = {
+  "LOX/RP-1": { name: "LOX/RP-1", oxidizer: "LOX", fuel: "RP-1", rNominal: 2.3, cstarIdeal: 1780, gamma: 1.2 },
+  "LOX/ethanol": { name: "LOX/ethanol", oxidizer: "LOX", fuel: "ethanol", rNominal: 1.6, cstarIdeal: 1650, gamma: 1.18 },
+};
+
+const FIELDS = [
+  { key: "pair", label: "Propellants", unit: "", group: "Mission", kind: "choice", choices: ["LOX/RP-1", "LOX/ethanol"], default: "LOX/RP-1" },
+  { key: "thrust_n", label: "Thrust", unit: "N", group: "Mission", kind: "number", default: 3000, min: 500, max: 20000, step: 50 },
+  { key: "p_c_bar", label: "Chamber pressure", unit: "bar", group: "Mission", kind: "number", default: 20, min: 5, max: 80, step: 0.1 },
+  { key: "mixture_ratio", label: "Mixture ratio", unit: "ox/fuel", group: "Mission", kind: "number", default: 2.3, min: 0.8, max: 3.5, step: 0.01 },
+  { key: "eps", label: "Expansion ratio", unit: "", group: "Mission", kind: "number", default: 8, min: 2, max: 40, step: 0.5 },
+  { key: "p_tank_ox_bar", label: "Oxidizer tank", unit: "bar", group: "Tanks", kind: "number", default: 4, min: 1, max: 20, step: 0.1 },
+  { key: "p_tank_f_bar", label: "Fuel tank", unit: "bar", group: "Tanks", kind: "number", default: 4, min: 1, max: 20, step: 0.1 },
+  { key: "dp_suction_bar", label: "Suction loss", unit: "bar", group: "Tanks", kind: "number", default: 0.5, min: 0, max: 5, step: 0.05 },
+  { key: "rpm_min", label: "Minimum rpm", unit: "rpm", group: "Speed window", kind: "number", default: 10000, min: 1000, max: 100000, step: 500 },
+  { key: "rpm_max", label: "Maximum rpm", unit: "rpm", group: "Speed window", kind: "number", default: 60000, min: 5000, max: 400000, step: 1000 },
+  { key: "eta_cstar", label: "c* efficiency", unit: "", group: "Assumptions", kind: "number", default: 0.92, min: 0.7, max: 1, step: 0.01 },
+  { key: "eta_cf", label: "Cf efficiency", unit: "", group: "Assumptions", kind: "number", default: 0.95, min: 0.7, max: 1, step: 0.01 },
+  { key: "cf_ideal", label: "Ideal Cf", unit: "", group: "Assumptions", kind: "number", default: 1.5, min: 1, max: 2, step: 0.01 },
+  { key: "f_inj", label: "Injector drop", unit: "of pc", group: "Assumptions", kind: "number", default: 0.2, min: 0, max: 0.5, step: 0.01 },
+  { key: "f_line", label: "Line drop", unit: "of pc", group: "Assumptions", kind: "number", default: 0.05, min: 0, max: 0.4, step: 0.01 },
+  { key: "eta_p", label: "Pump efficiency", unit: "", group: "Assumptions", kind: "number", default: 0.55, min: 0.2, max: 0.9, step: 0.01 },
+  { key: "psi", label: "Head coefficient", unit: "", group: "Assumptions", kind: "number", default: 0.5, min: 0.2, max: 1.2, step: 0.01 },
+  { key: "suction_specific_speed", label: "Suction specific speed", unit: "", group: "Assumptions", kind: "number", default: 8, min: 2, max: 15, step: 0.1 },
+];
+
+const NOMINAL_R = { "LOX/RP-1": 2.3, "LOX/ethanol": 1.6 };
+
+function linspace(a, b, n) {
+  const out = new Array(n);
+  if (n <= 1) {
+    out[0] = a;
+    return out;
+  }
+  const step = (b - a) / (n - 1);
+  for (let i = 0; i < n - 1; i++) out[i] = a + step * i;
+  out[n - 1] = b;
+  return out;
+}
+
+function numField(data, key) {
+  if (!Object.prototype.hasOwnProperty.call(data, key)) throw new Error("Missing input '" + key + "'.");
+  const value = Number(data[key]);
+  if (!Number.isFinite(value)) throw new Error(key + " must be a number.");
+  return value;
+}
+
+function inputsFromPayload(data) {
+  return {
+    thrust: numField(data, "thrust_n"),
+    pC: numField(data, "p_c_bar") * 1e5,
+    mixtureRatio: numField(data, "mixture_ratio"),
+    pair: String(data.pair),
+    pTankOx: numField(data, "p_tank_ox_bar") * 1e5,
+    pTankF: numField(data, "p_tank_f_bar") * 1e5,
+    rpmMin: numField(data, "rpm_min"),
+    rpmMax: numField(data, "rpm_max"),
+    etaCstar: numField(data, "eta_cstar"),
+    etaCf: numField(data, "eta_cf"),
+    eps: numField(data, "eps"),
+    fInj: numField(data, "f_inj"),
+    fLine: numField(data, "f_line"),
+    dpSuction: numField(data, "dp_suction_bar") * 1e5,
+    etaP: numField(data, "eta_p"),
+    psi: numField(data, "psi"),
+    suctionSpecificSpeed: numField(data, "suction_specific_speed"),
+    cfIdeal: numField(data, "cf_ideal"),
+  };
+}
+
+function positive(name, value) {
+  if (value <= 0) throw new Error(name + " must be positive, got " + value + ".");
+}
+
+function validate(inputs) {
+  if (!PAIRS[inputs.pair]) {
+    throw new Error("Unknown propellant pair '" + inputs.pair + "'. Choose one of: " + Object.keys(PAIRS).join(", ") + ".");
+  }
+  positive("thrust", inputs.thrust);
+  positive("p_c", inputs.pC);
+  positive("mixture_ratio", inputs.mixtureRatio);
+  positive("rpm_min", inputs.rpmMin);
+  if (inputs.rpmMax <= inputs.rpmMin) {
+    throw new Error("rpm_max must be greater than rpm_min, got " + inputs.rpmMin + " to " + inputs.rpmMax + ".");
+  }
+  for (const [name, value] of [["eta_cstar", inputs.etaCstar], ["eta_cf", inputs.etaCf], ["eta_p", inputs.etaP]]) {
+    if (!(value > 0 && value <= 1)) throw new Error(name + " must be in (0, 1], got " + value + ".");
+  }
+  positive("psi", inputs.psi);
+  positive("suction_specific_speed", inputs.suctionSpecificSpeed);
+  positive("cf_ideal", inputs.cfIdeal);
+  positive("eps", inputs.eps);
+  if (inputs.fInj < 0 || inputs.fLine < 0) throw new Error("f_inj and f_line must be >= 0.");
+}
+
+function enginePerformance(thrust, mixtureRatio, cstarIdeal, rhoOx, rhoFuel, etaCstar, etaCf, cfIdeal) {
+  const cstar = etaCstar * cstarIdeal;
+  const cf = etaCf * cfIdeal;
+  const ve = cstar * cf;
+  const isp = ve / G0;
+  const mDot = thrust / ve;
+  const mDotOx = mDot * mixtureRatio / (1 + mixtureRatio);
+  const mDotF = mDot / (1 + mixtureRatio);
+  return {
+    cstarIdeal, cstar, cfIdeal, cf, ve, isp, mDot, mDotOx, mDotF,
+    qOx: mDotOx / rhoOx,
+    qF: mDotF / rhoFuel,
+  };
+}
+
+function pumpDuty(side, pC, pTank, mDot, rho, pVapor, fInj, fLine, dpSuction, etaP) {
+  const pD = pC * (1 + fInj + fLine);
+  const pS = pTank - dpSuction;
+  const dp = pD - pS;
+  const q = mDot / rho;
+  const power = q * dp / etaP;
+  const npsha = (pS - pVapor) / (rho * G0);
+  const head = dp / (rho * G0);
+  const base = { side, pD, pS, dp, head, power, q, rho, npsha };
+  if (dp <= 0) {
+    return Object.assign(base, {
+      sweepOk: false,
+      note: "discharge pressure does not exceed suction pressure; cavitation sweep skipped",
+    });
+  }
+  if (pS <= pVapor) {
+    return Object.assign(base, {
+      sweepOk: false,
+      note: "p_s <= p_vapor; NPSHa is non-positive; cavitation sweep skipped",
+    });
+  }
+  return Object.assign(base, { sweepOk: true, note: "" });
+}
+
+function sweepKinematics(duty, rpm, psi, suctionSpecificSpeed) {
+  if (!duty.sweepOk) throw new Error(duty.side + " pump has no cavitation sweep (" + duty.note + ")");
+  const n = rpm.length;
+  const uTip = Math.sqrt(duty.dp / (duty.rho * psi));
+  const sqrtQ = Math.sqrt(duty.q);
+  const headTerm = (G0 * duty.head) ** 0.75;
+  const omega = new Array(n);
+  const u = new Array(n);
+  const d2 = new Array(n);
+  const omegaS = new Array(n);
+  const npshr = new Array(n);
+  const margin = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const w = 2 * Math.PI * rpm[i] / 60;
+    omega[i] = w;
+    u[i] = uTip;
+    d2[i] = 2 * uTip / w;
+    omegaS[i] = w * sqrtQ / headTerm;
+    const group = w * sqrtQ / suctionSpecificSpeed;
+    npshr[i] = (1 / G0) * group ** (4 / 3);
+    margin[i] = duty.npsha - npshr[i];
+  }
+  return { rpm, omega, u, d2, omegaS, npshr, margin };
+}
+
+function marginAt(duty, rpm, inputs) {
+  return sweepKinematics(duty, [rpm], inputs.psi, inputs.suctionSpecificSpeed).margin[0];
+}
+
+function zeroCrossing(duty, inputs) {
+  if (!duty.sweepOk) return [null, duty.note];
+  const mAtMin = marginAt(duty, inputs.rpmMin, inputs);
+  if (mAtMin === 0) return [inputs.rpmMin, "crossed"];
+  let lo;
+  let hi;
+  if (mAtMin < 0) {
+    lo = inputs.rpmMin;
+    let mLo = mAtMin;
+    while (mLo < 0 && lo > RPM_SEARCH_FLOOR) {
+      const nextLo = Math.max(RPM_SEARCH_FLOOR, lo / 2);
+      if (nextLo === lo) break;
+      lo = nextLo;
+      mLo = marginAt(duty, lo, inputs);
+    }
+    if (mLo < 0) {
+      return [null, "margin is non-positive from " + RPM_SEARCH_FLOOR.toFixed(0) + " rpm through the start of the sweep"];
+    }
+    if (mLo === 0) return [lo, "crossed"];
+    hi = inputs.rpmMin;
+  } else {
+    lo = inputs.rpmMin;
+    hi = inputs.rpmMax;
+    let mHi = marginAt(duty, hi, inputs);
+    while (mHi > 0 && hi < RPM_SEARCH_CAP) {
+      const nextHi = Math.min(RPM_SEARCH_CAP, hi * 2);
+      if (nextHi <= hi) break;
+      hi = nextHi;
+      mHi = marginAt(duty, hi, inputs);
+    }
+    if (mHi > 0) {
+      return [null, "margin is still positive at the search cap of " + RPM_SEARCH_CAP.toFixed(0) + " rpm"];
+    }
+    if (mHi === 0) return [hi, "crossed"];
+  }
+  const rpms = linspace(lo, hi, RPM_SEARCH_POINTS);
+  const margin = sweepKinematics(duty, rpms, inputs.psi, inputs.suctionSpecificSpeed).margin;
+  let index = -1;
+  for (let k = 0; k < margin.length - 1; k++) {
+    if (margin[k] > 0 && margin[k + 1] <= 0) {
+      index = k;
+      break;
+    }
+  }
+  if (index < 0) return [null, "no margin sign change on the search grid"];
+  const m0 = margin[index];
+  const m1 = margin[index + 1];
+  const n0 = rpms[index];
+  const n1 = rpms[index + 1];
+  return [n0 + (m0 / (m0 - m1)) * (n1 - n0), "crossed"];
+}
+
+function sideSweep(duty, rpmGrid, inputs) {
+  const found = zeroCrossing(duty, inputs);
+  const zeroStatus = found[1];
+  if (!duty.sweepOk) {
+    return { duty, rpm: [], u: [], d2: [], omegaS: [], npshr: [], margin: [], zeroRpm: null, zeroStatus };
+  }
+  const kin = sweepKinematics(duty, rpmGrid, inputs.psi, inputs.suctionSpecificSpeed);
+  return {
+    duty,
+    rpm: kin.rpm,
+    u: kin.u,
+    d2: kin.d2,
+    omegaS: kin.omegaS,
+    npshr: kin.npshr,
+    margin: kin.margin,
+    zeroRpm: found[0],
+    zeroStatus,
+  };
+}
+
+function pointAt(duty, rpm, inputs) {
+  if (rpm == null || !duty.sweepOk) return null;
+  const kin = sweepKinematics(duty, [rpm], inputs.psi, inputs.suctionSpecificSpeed);
+  return {
+    rpm,
+    u: kin.u[0],
+    d2: kin.d2[0],
+    omegaS: kin.omegaS[0],
+    npshr: kin.npshr[0],
+    margin: kin.margin[0],
+  };
+}
+
+function pyG(value) {
+  if (Number.isInteger(value)) return String(value);
+  return String(value);
+}
+
+function collectWarnings(inputs, rNominal, ox, fuel, oxAtLimit, fuelAtLimit) {
+  const warnings = [];
+  for (const side of [ox, fuel]) {
+    if (!side.duty.sweepOk && side.duty.note) warnings.push(side.duty.side + ": " + side.duty.note);
+  }
+  if (Math.abs(inputs.mixtureRatio - rNominal) > R_WARN_DELTA) {
+    warnings.push(
+      "Mixture ratio " + inputs.mixtureRatio.toFixed(3) + " differs from the " + inputs.pair +
+      " nominal " + rNominal.toFixed(3) + " by more than " + R_WARN_DELTA.toFixed(1) + ". " +
+      "c*_ideal was not retuned and is likely wrong for this mixture ratio."
+    );
+  }
+  if (Math.abs(inputs.eps - EPS_REFERENCE) > 1e-6) {
+    warnings.push(
+      "eps = " + pyG(inputs.eps) + " differs from " + pyG(EPS_REFERENCE) + ". " +
+      "v1 does not solve the area-Mach relation; Cf_ideal was not recomputed."
+    );
+  }
+  for (const side of [ox, fuel]) {
+    if (!side.omegaS.length) continue;
+    let low = side.omegaS[0];
+    let high = side.omegaS[0];
+    for (const value of side.omegaS) {
+      if (value < low) low = value;
+      if (value > high) high = value;
+    }
+    if (low < OMEGA_S_MIN || high > OMEGA_S_MAX) {
+      warnings.push(
+        side.duty.side + " omega_s spans " + low.toFixed(3) + " to " + high.toFixed(3) +
+        " from " + inputs.rpmMin.toFixed(0) + " to " + inputs.rpmMax.toFixed(0) +
+        " rpm, which leaves the " + OMEGA_S_MIN.toFixed(1) + "-" + OMEGA_S_MAX.toFixed(1) +
+        " band. psi was not retuned."
+      );
+    }
+  }
+  for (const side of [ox, fuel]) {
+    if (side.zeroRpm == null) continue;
+    if (side.zeroRpm > inputs.rpmMax || side.zeroRpm < inputs.rpmMin) {
+      warnings.push(
+        side.duty.side + " margin crosses zero at " + side.zeroRpm.toFixed(0) +
+        " rpm, outside the requested rpm window. The table and plot stay on that window."
+      );
+    }
+  }
+  for (const [label, point] of [["ox", oxAtLimit], ["fuel", fuelAtLimit]]) {
+    if (!point) continue;
+    if (point.omegaS < OMEGA_S_MIN || point.omegaS > OMEGA_S_MAX) {
+      warnings.push(
+        label + " dimensionless specific speed omega_s = " + point.omegaS.toFixed(3) +
+        " at " + point.rpm.toFixed(0) + " rpm is outside " + OMEGA_S_MIN.toFixed(1) + "-" +
+        OMEGA_S_MAX.toFixed(1) + ". psi was not retuned."
+      );
+    }
+  }
+  return warnings;
+}
+
+function sidePayload(sweep, point) {
+  return {
+    p_d_bar: sweep.duty.pD / 1e5,
+    p_s_bar: sweep.duty.pS / 1e5,
+    dp_bar: sweep.duty.dp / 1e5,
+    npsha_m: sweep.duty.npsha,
+    power_kw: sweep.duty.power / 1e3,
+    zero_rpm: sweep.zeroRpm,
+    zero_status: sweep.zeroStatus,
+    d2_mm: point ? point.d2 * 1e3 : null,
+    margin_m: point ? point.margin : null,
+    omega_s: point ? point.omegaS : null,
+  };
+}
+
+function curveOf(side) {
+  if (!side.rpm.length) return null;
+  return {
+    rpm: side.rpm,
+    margin: side.margin,
+    d2mm: side.d2.map((value) => value * 1e3),
+  };
+}
+
+function evaluatePayload(data) {
+  try {
+    const inputs = inputsFromPayload(data);
+    validate(inputs);
+    const pair = PAIRS[inputs.pair];
+    const oxProp = PROPELLANTS[pair.oxidizer];
+    const fuelProp = PROPELLANTS[pair.fuel];
+    const engine = enginePerformance(
+      inputs.thrust,
+      inputs.mixtureRatio,
+      pair.cstarIdeal,
+      oxProp.density,
+      fuelProp.density,
+      inputs.etaCstar,
+      inputs.etaCf,
+      inputs.cfIdeal
+    );
+    const oxDuty = pumpDuty("ox", inputs.pC, inputs.pTankOx, engine.mDotOx, oxProp.density, oxProp.vaporPressure, inputs.fInj, inputs.fLine, inputs.dpSuction, inputs.etaP);
+    const fuelDuty = pumpDuty("fuel", inputs.pC, inputs.pTankF, engine.mDotF, fuelProp.density, fuelProp.vaporPressure, inputs.fInj, inputs.fLine, inputs.dpSuction, inputs.etaP);
+    const rpmGrid = linspace(inputs.rpmMin, inputs.rpmMax, PLOT_POINTS);
+    const ox = sideSweep(oxDuty, rpmGrid, inputs);
+    const fuel = sideSweep(fuelDuty, rpmGrid, inputs);
+    const candidates = [];
+    if (ox.zeroRpm != null) candidates.push(["ox", ox.zeroRpm]);
+    if (fuel.zeroRpm != null) candidates.push(["fuel", fuel.zeroRpm]);
+    let limitingSide = null;
+    let limitingRpm = null;
+    if (candidates.length) {
+      candidates.sort((a, b) => a[1] - b[1]);
+      limitingSide = candidates[0][0];
+      limitingRpm = candidates[0][1];
+    }
+    const oxAtLimit = pointAt(ox.duty, limitingRpm, inputs);
+    const fuelAtLimit = pointAt(fuel.duty, limitingRpm, inputs);
+    const powerTotal = ox.duty.power + fuel.duty.power;
+    return {
+      ok: true,
+      pair: pair.name,
+      r_nominal: pair.rNominal,
+      gamma: pair.gamma,
+      limiting_rpm: limitingRpm,
+      limiting_side: limitingSide,
+      power_total_kw: powerTotal / 1e3,
+      warnings: collectWarnings(inputs, pair.rNominal, ox, fuel, oxAtLimit, fuelAtLimit),
+      engine: {
+        cstar_m_s: engine.cstar,
+        cf: engine.cf,
+        ve_m_s: engine.ve,
+        isp_s: engine.isp,
+        m_dot_kg_s: engine.mDot,
+        m_dot_ox_kg_s: engine.mDotOx,
+        m_dot_f_kg_s: engine.mDotF,
+        q_ox_l_s: engine.qOx * 1e3,
+        q_f_l_s: engine.qF * 1e3,
+      },
+      ox: sidePayload(ox, oxAtLimit),
+      fuel: sidePayload(fuel, fuelAtLimit),
+      plot: {
+        pair: pair.name,
+        thrust: inputs.thrust,
+        pC: inputs.pC,
+        etaP: inputs.etaP,
+        rpmMin: inputs.rpmMin,
+        rpmMax: inputs.rpmMax,
+        limitingRpm,
+        oxZero: ox.zeroRpm,
+        fuelZero: fuel.zeroRpm,
+        ox: curveOf(ox),
+        fuel: curveOf(fuel),
+        note:
+          "Total shaft power is constant at " + num(powerTotal / 1e3, 2) + " kW (oxidizer " +
+          num(ox.duty.power / 1e3, 2) + " kW, fuel " + num(fuel.duty.power / 1e3, 2) +
+          " kW). eta_p = " + inputs.etaP.toFixed(2) + " is optimistic for few-kN machined impellers.",
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : "Could not evaluate this case." };
+  }
+}
+
+const statusEl = document.querySelector("#status");
+const errorEl = document.querySelector("#error");
+let timer = 0;
+let seq = 0;
+let chart = null;
+let unreliable = false;
+
+function esc(value) {
+  return String(value).replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]));
+}
+
+function xml(value) {
+  return String(value).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+}
+
+function num(value, digits) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "n/a";
+  return Number(value).toLocaleString(undefined, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+function renderField(field) {
+  const row = document.createElement("label");
+  row.className = "field";
+  const name = document.createElement("span");
+  name.textContent = field.label;
+  row.appendChild(name);
+  if (field.kind === "choice") {
+    const select = document.createElement("select");
+    select.id = field.key;
+    select.dataset.key = field.key;
+    select.dataset.default = field.default;
+    for (const choice of field.choices) {
+      const option = document.createElement("option");
+      option.value = choice;
+      option.textContent = choice;
+      select.appendChild(option);
+    }
+    select.value = field.default;
+    select.addEventListener("change", () => {
+      onPairChange();
+      schedule();
+    });
+    row.append(select, document.createElement("span"));
+    return row;
+  }
+  const range = document.createElement("input");
+  range.type = "range";
+  range.min = field.min;
+  range.max = field.max;
+  range.step = field.step;
+  range.value = field.default;
+  range.setAttribute("aria-label", field.label);
+  const number = document.createElement("input");
+  number.type = "number";
+  number.id = field.key;
+  number.dataset.key = field.key;
+  number.step = String(field.step);
+  number.value = String(field.default);
+  number.dataset.default = String(field.default);
+  number.setAttribute("aria-label", field.label);
+  number.addEventListener("wheel", (event) => {
+    if (document.activeElement === number) event.preventDefault();
+  }, { passive: false });
+  range.addEventListener("input", () => {
+    number.value = range.value;
+    if (field.key === "mixture_ratio") number.dataset.userEdited = "1";
+    schedule();
+  });
+  number.addEventListener("input", () => {
+    if (number.value !== "" && !Number.isNaN(Number(number.value))) range.value = number.value;
+    if (field.key === "mixture_ratio") number.dataset.userEdited = "1";
+    schedule();
+  });
+  const unit = document.createElement("span");
+  unit.className = "unit";
+  unit.textContent = field.unit;
+  row.append(range, number, unit);
+  return row;
+}
+
+function onPairChange() {
+  const pair = document.querySelector("#pair").value;
+  const ratio = document.querySelector("#mixture_ratio");
+  const next = NOMINAL_R[pair];
+  const previous = ratio.dataset.nominal;
+  if (ratio.dataset.userEdited !== "1" || ratio.value === previous) {
+    ratio.value = next;
+    const range = ratio.parentElement.querySelector("input[type=range]");
+    if (range) range.value = next;
+    ratio.dataset.userEdited = "0";
+  }
+  ratio.dataset.nominal = String(next);
+  const hint = document.querySelector("#nominal-hint");
+  if (hint) {
+    hint.textContent = "Tabulated c* is for r = " + next + ". More than 0.3 away warns and does not retune c*.";
+  }
+}
+
+function fillDefaults() {
+  for (const el of document.querySelectorAll("[data-default]")) {
+    el.value = el.dataset.default;
+    const range = el.parentElement.querySelector("input[type=range]");
+    if (range) range.value = el.dataset.default;
+    if (el.dataset.key === "mixture_ratio") el.dataset.userEdited = "0";
+  }
+  onPairChange();
+}
+
+function payload() {
+  const body = {};
+  for (const el of document.querySelectorAll("[data-key]")) {
+    if (el.dataset.key === "pair") {
+      body[el.dataset.key] = el.value;
+      continue;
+    }
+    if (el.value.trim() === "") {
+      const label = el.parentElement.querySelector("span");
+      throw new Error((label ? label.textContent : el.dataset.key) + " is empty.");
+    }
+    body[el.dataset.key] = Number(el.value);
+  }
+  return body;
+}
+
+function answerHtml(data) {
+  const side = data.limiting_side === "ox" ? "Oxidizer" : data.limiting_side === "fuel" ? "Fuel" : "Neither";
+  const rpm = data.limiting_rpm === null ? "none" : num(data.limiting_rpm, 0) + " rpm";
+  const cards = [
+    ["Limiting speed", rpm],
+    ["Limiting pump", side],
+    ["Oxidizer diameter", data.ox.d2_mm === null ? "n/a" : num(data.ox.d2_mm, 2) + " mm"],
+    ["Fuel diameter", data.fuel.d2_mm === null ? "n/a" : num(data.fuel.d2_mm, 2) + " mm"],
+  ];
+  return cards.map(([label, value]) => '<div class="stat"><span>' + label + "</span><b>" + esc(value) + "</b></div>").join("");
+}
+
+function row(label, ox, fuel) {
+  return "<tr><td>" + label + "</td><td>" + ox + "</td><td>" + fuel + "</td></tr>";
+}
+
+function detailsHtml(data) {
+  const eng = data.engine;
+  const facts = [
+    ["c*", num(eng.cstar_m_s, 1) + " m/s"],
+    ["Cf", num(eng.cf, 3)],
+    ["ve", num(eng.ve_m_s, 1) + " m/s"],
+    ["Isp", num(eng.isp_s, 1) + " s"],
+    ["mass flow", num(eng.m_dot_kg_s, 3) + " kg/s"],
+    ["oxidizer flow", num(eng.m_dot_ox_kg_s, 3) + " kg/s"],
+    ["fuel flow", num(eng.m_dot_f_kg_s, 3) + " kg/s"],
+    ["oxidizer volume", num(eng.q_ox_l_s, 3) + " L/s"],
+    ["fuel volume", num(eng.q_f_l_s, 3) + " L/s"],
+    ["total power", num(data.power_total_kw, 3) + " kW"],
+  ].map(([label, value]) => "<div><span>" + label + "</span><b>" + value + "</b></div>").join("");
+  const ox = data.ox;
+  const fuel = data.fuel;
+  const pumpRows = [
+    row("zero-cross", ox.zero_rpm === null ? "none" : num(ox.zero_rpm, 0) + " rpm", fuel.zero_rpm === null ? "none" : num(fuel.zero_rpm, 0) + " rpm"),
+    row("power", num(ox.power_kw, 3) + " kW", num(fuel.power_kw, 3) + " kW"),
+    row("diameter at limit", ox.d2_mm === null ? "n/a" : num(ox.d2_mm, 2) + " mm", fuel.d2_mm === null ? "n/a" : num(fuel.d2_mm, 2) + " mm"),
+    row("margin at limit", ox.margin_m === null ? "n/a" : num(ox.margin_m, 3) + " m", fuel.margin_m === null ? "n/a" : num(fuel.margin_m, 3) + " m"),
+    row("NPSHa", num(ox.npsha_m, 2) + " m", num(fuel.npsha_m, 2) + " m"),
+    row("discharge", num(ox.p_d_bar, 2) + " bar", num(fuel.p_d_bar, 2) + " bar"),
+    row("suction", num(ox.p_s_bar, 2) + " bar", num(fuel.p_s_bar, 2) + " bar"),
+    row("pressure rise", num(ox.dp_bar, 2) + " bar", num(fuel.dp_bar, 2) + " bar"),
+    row("specific speed", ox.omega_s === null ? "n/a" : num(ox.omega_s, 3), fuel.omega_s === null ? "n/a" : num(fuel.omega_s, 3)),
+  ].join("");
+  return '<div class="facts">' + facts + "</div><table><tr><th></th><th class=\"ox\">Oxidizer</th><th class=\"fuel\">Fuel</th></tr>" + pumpRows + "</table>";
+}
+
+function warningsHtml(warnings) {
+  const items = unreliable
+    ? ["Built-in check against the 3 kN LOX/RP-1 case failed. Treat these numbers as unreliable."].concat(warnings)
+    : warnings;
+  if (!items.length) return '<li class="quiet">No warnings.</li>';
+  return items.map((warning) => "<li>" + esc(warning) + "</li>").join("");
+}
+
+function padDomain(min, max) {
+  if (!(max > min)) {
+    const span = Math.abs(min) || 1;
+    return [min - span * 0.08, max + span * 0.08];
+  }
+  const pad = (max - min) * 0.08;
+  return [min - pad, max + pad];
+}
+
+function tickValues(min, max, count) {
+  if (!(max > min)) return [min];
+  const rough = (max - min) / Math.max(1, count - 1);
+  const mag = 10 ** Math.floor(Math.log10(rough));
+  const norm = rough / mag;
+  const step = (norm >= 7 ? 10 : norm >= 3 ? 5 : norm >= 1.5 ? 2 : 1) * mag;
+  const start = Math.ceil((min - step * 1e-9) / step) * step;
+  const ticks = [];
+  for (let value = start; value <= max + step * 1e-6; value += step) {
+    ticks.push(Math.abs(value) < step * 1e-6 ? 0 : value);
+    if (ticks.length > 8) break;
+  }
+  return ticks;
+}
+
+function tickLabel(value) {
+  if (Math.abs(value) >= 1000) return Math.round(value).toLocaleString();
+  const rounded = Math.round(value * 100) / 100;
+  return String(rounded);
+}
+
+function seriesExtent(series, key) {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const item of series) {
+    if (!item) continue;
+    for (const value of item[key]) {
+      if (value < min) min = value;
+      if (value > max) max = value;
+    }
+  }
+  return [min, max];
+}
+
+function polyline(rpm, values, x0, x1, y0, y1, vmin, vmax, rmin, rmax) {
+  const pts = [];
+  const ySpan = vmax - vmin || 1;
+  const xSpan = rmax - rmin || 1;
+  for (let i = 0; i < rpm.length; i++) {
+    const x = x0 + ((rpm[i] - rmin) / xSpan) * (x1 - x0);
+    const y = y1 - ((values[i] - vmin) / ySpan) * (y1 - y0);
+    pts.push(x.toFixed(1) + "," + y.toFixed(1));
+  }
+  return pts.join(" ");
+}
+
+function legendBlock(items, x, y) {
+  if (!items.length) return "";
+  const rowH = 16;
+  const width = Math.max.apply(null, items.map((item) => 22 + item.label.length * 6.3).concat([88]));
+  const height = 8 + items.length * rowH;
+  let body = '<rect x="' + x + '" y="' + y + '" width="' + width.toFixed(1) + '" height="' + height + '" rx="4" fill="white" fill-opacity="0.92" stroke="#ddd6c8"/>';
+  items.forEach((item, index) => {
+    const yy = y + 14 + index * rowH;
+    body += '<line x1="' + (x + 8) + '" y1="' + yy + '" x2="' + (x + 22) + '" y2="' + yy + '" stroke="' + item.color + '" stroke-width="2" ' + (item.dash || "") + '/>';
+    body += '<text x="' + (x + 26) + '" y="' + (yy + 3) + '" font-size="11" fill="#1b1916">' + xml(item.label) + "</text>";
+  });
+  return body;
+}
+
+function drawPanel(parts, spec) {
+  const x0 = spec.x0;
+  const x1 = spec.x1;
+  const y0 = spec.y;
+  const y1 = spec.y + spec.h;
+  parts.push('<rect x="' + x0 + '" y="' + y0 + '" width="' + (x1 - x0) + '" height="' + spec.h + '" fill="white"/>');
+  const yTicks = tickValues(spec.yMin, spec.yMax, 5);
+  for (const tick of yTicks) {
+    const y = y1 - ((tick - spec.yMin) / (spec.yMax - spec.yMin || 1)) * spec.h;
+    parts.push('<line x1="' + x0 + '" y1="' + y.toFixed(1) + '" x2="' + x1 + '" y2="' + y.toFixed(1) + '" stroke="#e6e0d4"/>');
+    parts.push('<text x="' + (x0 - 8) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end" font-size="11" fill="#5e584e">' + xml(tickLabel(tick)) + "</text>");
+  }
+  for (const tick of tickValues(spec.rpmMin, spec.rpmMax, 5)) {
+    const x = x0 + ((tick - spec.rpmMin) / (spec.rpmMax - spec.rpmMin || 1)) * (x1 - x0);
+    parts.push('<line x1="' + x.toFixed(1) + '" y1="' + y0 + '" x2="' + x.toFixed(1) + '" y2="' + y1 + '" stroke="#e6e0d4"/>');
+    if (spec.showX) {
+      parts.push('<text x="' + x.toFixed(1) + '" y="' + (y1 + 16) + '" text-anchor="middle" font-size="11" fill="#5e584e">' + xml(tickLabel(tick)) + "</text>");
+    }
+  }
+  parts.push('<rect x="' + x0 + '" y="' + y0 + '" width="' + (x1 - x0) + '" height="' + spec.h + '" fill="none" stroke="#ddd6c8"/>');
+  const clip = spec.clip;
+  parts.push('<clipPath id="' + clip + '"><rect x="' + x0 + '" y="' + y0 + '" width="' + (x1 - x0) + '" height="' + spec.h + '"/></clipPath>');
+  parts.push('<g clip-path="url(#' + clip + ')">');
+  if (spec.zeroLine && spec.yMin <= 0 && spec.yMax >= 0) {
+    const y = y1 - ((0 - spec.yMin) / (spec.yMax - spec.yMin || 1)) * spec.h;
+    parts.push('<line x1="' + x0 + '" y1="' + y.toFixed(1) + '" x2="' + x1 + '" y2="' + y.toFixed(1) + '" stroke="#1b1916" stroke-width="1"/>');
+  }
+  if (spec.limitX != null) {
+    parts.push('<line x1="' + spec.limitX.toFixed(1) + '" y1="' + y0 + '" x2="' + spec.limitX.toFixed(1) + '" y2="' + y1 + '" stroke="#404040" stroke-dasharray="4 3" stroke-width="1"/>');
+  }
+  for (const series of spec.series) {
+    if (!series) continue;
+    parts.push(
+      '<polyline fill="none" stroke="' + series.color + '" stroke-width="2" points="' +
+      polyline(series.rpm, series.values, x0, x1, y0, y1, spec.yMin, spec.yMax, spec.rpmMin, spec.rpmMax) +
+      '"/>'
+    );
+  }
+  parts.push("</g>");
+  const yMid = ((y0 + y1) / 2).toFixed(1);
+  parts.push('<text transform="rotate(-90 16 ' + yMid + ')" x="16" y="' + yMid + '" text-anchor="middle" font-size="12" fill="#5e584e">' + xml(spec.yTitle) + "</text>");
+  if (!spec.series.some(Boolean)) {
+    parts.push('<text x="' + ((x0 + x1) / 2).toFixed(1) + '" y="' + ((y0 + y1) / 2).toFixed(1) + '" text-anchor="middle" font-size="13" fill="#5e584e">Cavitation sweep skipped</text>');
+  }
+  parts.push(legendBlock(spec.legend, x0 + 8, y0 + 8));
+  if (spec.notes && spec.notes.length) {
+    const width = 210;
+    const height = 8 + spec.notes.length * 15;
+    const nx = x1 - width - 8;
+    const ny = y0 + 8;
+    parts.push('<rect x="' + nx + '" y="' + ny + '" width="' + width + '" height="' + height + '" rx="4" fill="white" fill-opacity="0.92" stroke="#ddd6c8"/>');
+    spec.notes.forEach((note, index) => {
+      parts.push('<text x="' + (nx + 8) + '" y="' + (ny + 16 + index * 15) + '" font-size="11" fill="#1b1916">' + xml(note) + "</text>");
+    });
+  }
+}
+
+function outsideNotes(plot) {
+  const notes = [];
+  if (plot.oxZero != null && !(plot.rpmMin <= plot.oxZero && plot.oxZero <= plot.rpmMax)) {
+    notes.push("Oxidizer zero-cross " + num(plot.oxZero, 0) + " rpm");
+  }
+  if (plot.fuelZero != null && !(plot.rpmMin <= plot.fuelZero && plot.fuelZero <= plot.rpmMax)) {
+    notes.push("Fuel zero-cross " + num(plot.fuelZero, 0) + " rpm");
+  }
+  return notes;
+}
+
+function drawPlot(plot) {
+  const svg = document.querySelector("#plot");
+  const W = 760;
+  const H = 520;
+  const x0 = 72;
+  const x1 = W - 16;
+  const top = 28;
+  const gap = 46;
+  const h = 190;
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  const limitInside = plot.limitingRpm != null && plot.rpmMin <= plot.limitingRpm && plot.limitingRpm <= plot.rpmMax;
+  const limitX = limitInside ? x0 + ((plot.limitingRpm - plot.rpmMin) / (plot.rpmMax - plot.rpmMin || 1)) * (x1 - x0) : null;
+  const marginSeries = [
+    plot.ox ? { rpm: plot.ox.rpm, values: plot.ox.margin, color: "#0072B2" } : null,
+    plot.fuel ? { rpm: plot.fuel.rpm, values: plot.fuel.margin, color: "#E69F00" } : null,
+  ];
+  const diameterSeries = [
+    plot.ox ? { rpm: plot.ox.rpm, values: plot.ox.d2mm, color: "#0072B2" } : null,
+    plot.fuel ? { rpm: plot.fuel.rpm, values: plot.fuel.d2mm, color: "#E69F00" } : null,
+  ];
+  const [mMin, mMax] = seriesExtent(marginSeries, "values");
+  const [dMin, dMax] = seriesExtent(diameterSeries, "values");
+  const marginDomain = Number.isFinite(mMin) ? padDomain(mMin, mMax) : [0, 1];
+  const diameterDomain = Number.isFinite(dMin) ? padDomain(dMin, dMax) : [0, 1];
+  const marginLegend = [];
+  if (marginDomain[0] <= 0 && marginDomain[1] >= 0) marginLegend.push({ label: "Zero margin", color: "#1b1916" });
+  if (plot.ox) marginLegend.push({ label: "Oxidizer", color: "#0072B2" });
+  if (plot.fuel) marginLegend.push({ label: "Fuel", color: "#E69F00" });
+  if (limitInside) marginLegend.push({ label: "Limiting rpm", color: "#404040", dash: 'stroke-dasharray="4 3"' });
+  const diameterLegend = [];
+  if (plot.ox) diameterLegend.push({ label: "Oxidizer", color: "#0072B2" });
+  if (plot.fuel) diameterLegend.push({ label: "Fuel", color: "#E69F00" });
+  if (limitInside) diameterLegend.push({ label: "Limiting rpm", color: "#404040", dash: 'stroke-dasharray="4 3"' });
+  const parts = [
+    '<rect width="' + W + '" height="' + H + '" fill="white"/>',
+    '<text x="' + (W / 2) + '" y="18" text-anchor="middle" font-size="13" fill="#1b1916">' +
+      xml(plot.pair + "   " + plot.thrust.toFixed(0) + " N   p_c = " + (plot.pC / 1e5).toFixed(2) + " bar") +
+      "</text>",
+  ];
+  drawPanel(parts, {
+    x0, x1, y: top, h,
+    yMin: marginDomain[0], yMax: marginDomain[1],
+    yTitle: "Cavitation margin (m)",
+    rpmMin: plot.rpmMin, rpmMax: plot.rpmMax,
+    series: marginSeries,
+    zeroLine: true,
+    limitX,
+    legend: marginLegend,
+    notes: outsideNotes(plot),
+    showX: false,
+    clip: "clip-margin",
+  });
+  drawPanel(parts, {
+    x0, x1, y: top + h + gap, h,
+    yMin: diameterDomain[0], yMax: diameterDomain[1],
+    yTitle: "Impeller diameter (mm)",
+    rpmMin: plot.rpmMin, rpmMax: plot.rpmMax,
+    series: diameterSeries,
+    zeroLine: false,
+    limitX,
+    legend: diameterLegend,
+    notes: [],
+    showX: true,
+    clip: "clip-diameter",
+  });
+  parts.push('<text x="' + ((x0 + x1) / 2) + '" y="' + (top + h + gap + h + 36) + '" text-anchor="middle" font-size="12" fill="#5e584e">Shaft speed (rpm)</text>');
+  svg.innerHTML = parts.join("");
+  const speedRpm = (plot.ox && plot.ox.rpm) || (plot.fuel && plot.fuel.rpm) || [];
+  chart = {
+    w: W,
+    x0, x1,
+    top,
+    bottom: top + h + gap + h,
+    rpmMin: plot.rpmMin,
+    rpmMax: plot.rpmMax,
+    rpm: speedRpm,
+    ox: plot.ox,
+    fuel: plot.fuel,
+  };
+  const limitText = plot.limitingRpm == null ? "no limiting speed inside the search" : "limiting speed " + num(plot.limitingRpm, 0) + " rpm";
+  svg.setAttribute("aria-label", "Cavitation margin and impeller diameter from " + num(plot.rpmMin, 0) + " to " + num(plot.rpmMax, 0) + " rpm, " + limitText + ".");
+}
+
+function nearestIndex(rpm, target) {
+  let best = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < rpm.length; i++) {
+    const dist = Math.abs(rpm[i] - target);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = i;
+    }
+  }
+  return best;
+}
+
+function onPlotPointer(event) {
+  if (!chart || !chart.rpm.length) return;
+  const svg = event.currentTarget;
+  const rect = svg.getBoundingClientRect();
+  const x = ((event.clientX - rect.left) / rect.width) * chart.w;
+  if (x < chart.x0 || x > chart.x1) return;
+  const rpm = chart.rpmMin + ((x - chart.x0) / (chart.x1 - chart.x0)) * (chart.rpmMax - chart.rpmMin);
+  const index = nearestIndex(chart.rpm, rpm);
+  const parts = [num(chart.rpm[index], 0) + " rpm"];
+  if (chart.ox) parts.push("oxidizer margin " + num(chart.ox.margin[index], 2) + " m, diameter " + num(chart.ox.d2mm[index], 2) + " mm");
+  if (chart.fuel) parts.push("fuel margin " + num(chart.fuel.margin[index], 2) + " m, diameter " + num(chart.fuel.d2mm[index], 2) + " mm");
+  document.querySelector("#readout").textContent = parts.join(" · ");
+  const xLine = chart.x0 + ((chart.rpm[index] - chart.rpmMin) / (chart.rpmMax - chart.rpmMin || 1)) * (chart.x1 - chart.x0);
+  let line = svg.querySelector("#cursor");
+  if (!line) {
+    line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.id = "cursor";
+    line.setAttribute("stroke", "#1b1916");
+    line.setAttribute("stroke-dasharray", "3 3");
+    line.setAttribute("stroke-width", "1");
+    svg.appendChild(line);
+  }
+  line.setAttribute("x1", xLine);
+  line.setAttribute("x2", xLine);
+  line.setAttribute("y1", chart.top);
+  line.setAttribute("y2", chart.bottom);
+}
+
+function startupCheck() {
+  const data = {};
+  for (const field of FIELDS) data[field.key] = field.default;
+  const body = evaluatePayload(data);
+  const ve = body.ok ? body.engine.ve_m_s : NaN;
+  const rpm = body.ok ? body.limiting_rpm : NaN;
+  const power = body.ok ? body.ox.power_kw : NaN;
+  unreliable = !(body.ok && Math.abs(ve - 2333.58) < 0.05 && body.limiting_side === "ox" && rpm > 154000 && rpm < 155500 && power > 1 && power < 10);
+}
+
+function run() {
+  const id = ++seq;
+  statusEl.textContent = "Updating";
+  let data;
+  try {
+    data = evaluatePayload(payload());
+  } catch (err) {
+    if (id !== seq) return;
+    statusEl.textContent = "Not updated";
+    errorEl.textContent = err.message || "Could not update the sizer.";
+    return;
+  }
+  if (id !== seq) return;
+  if (!data.ok) {
+    statusEl.textContent = "Not updated";
+    errorEl.textContent = data.error;
+    return;
+  }
+  errorEl.textContent = "";
+  statusEl.textContent = "Updated";
+  document.querySelector("#answer").innerHTML = answerHtml(data);
+  document.querySelector("#details").innerHTML = detailsHtml(data);
+  document.querySelector("#warnings").innerHTML = warningsHtml(data.warnings);
+  drawPlot(data.plot);
+  document.querySelector("#plot-note").textContent = data.plot.note;
+  document.querySelector("#readout").textContent = "Move across the figure to read a shaft speed.";
+}
+
+function schedule() {
+  clearTimeout(timer);
+  timer = setTimeout(run, 160);
+}
+
+function init() {
+  startupCheck();
+  const form = document.querySelector("#form");
+  form.addEventListener("submit", (event) => event.preventDefault());
+  let group = "";
+  for (const field of FIELDS) {
+    if (field.group !== group) {
+      group = field.group;
+      const heading = document.createElement("h2");
+      heading.textContent = group;
+      form.appendChild(heading);
+      if (group === "Speed window") {
+        const hint = document.createElement("p");
+        hint.className = "hint";
+        hint.textContent = "The figure uses this window. The cavitation limit is still reported when it sits above it. Raise maximum rpm to watch the margin cross zero.";
+        form.appendChild(hint);
+      }
+      if (group === "Assumptions") {
+        const hint = document.createElement("p");
+        hint.className = "hint";
+        hint.textContent = "Pump efficiency 0.55 is optimistic for a few-kN machined impeller. Specific speed outside 0.4-1.5 warns and does not change the head coefficient.";
+        form.appendChild(hint);
+      }
+    }
+    form.appendChild(renderField(field));
+    if (field.key === "mixture_ratio") {
+      const hint = document.createElement("p");
+      hint.id = "nominal-hint";
+      hint.className = "hint";
+      form.appendChild(hint);
+    }
+  }
+  const reset = document.createElement("button");
+  reset.type = "button";
+  reset.textContent = "Reset defaults";
+  reset.addEventListener("click", () => {
+    fillDefaults();
+    schedule();
+  });
+  form.appendChild(reset);
+  const plot = document.querySelector("#plot");
+  plot.addEventListener("pointermove", onPlotPointer);
+  plot.addEventListener("pointerleave", () => {
+    const line = plot.querySelector("#cursor");
+    if (line) line.remove();
+    document.querySelector("#readout").textContent = "Move across the figure to read a shaft speed.";
+  });
+  onPairChange();
+  run();
+}
+
+init();
+</script>
+</body>
+</html>
